@@ -33,12 +33,42 @@ def get_num_of_open_positions(url):
     return num_of_open_positions
 
 
+# function to extract the job description from the url of the job
+def extract_job_description(url):
+    # Send a GET request to the URL
+    response = requests.get(url)
+
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        # Extract the HTML content from the response
+        html_content = response.text
+    else:
+        print("Error with Response")
+        return
+
+    # Clean the text of the description
+    soup = BeautifulSoup(html_content, 'html.parser')
+    ats_description_div = soup.find('div', class_='ats-description')
+    if ats_description_div:
+        text_from_ats_description = ats_description_div.get_text(separator='\n', strip=True)
+        # clean text from new lines.
+        split_text = text_from_ats_description.replace("\n", ' ')
+        clean_text = "".join(split_text)
+        print(clean_text)
+        print(len(clean_text))
+        return clean_text
+
+    else:
+        print("Error with BeautifulSoup")
+        return None
+
+
 # function to build a Job object
 def create_job(data):
     start = data.find('/')
     end = data.find(' ') - 1
-    job_description = data[start:end]
-    job_description = "https://jobs.dell.com" + job_description
+    job_description_link = data[start:end]
+    job_description_link = "https://jobs.dell.com" + job_description_link
 
     start = data.find("<h2>") + 4
     end = data[start:].find("</h2>") + start
@@ -56,7 +86,14 @@ def create_job(data):
     else:
         country = city = job_location
 
-    job = Job(job_title, country, city, job_description)
+    # this for save requests if we already have description for the same job title
+    if job_title in Job.job_title_to_description:
+        job_description = Job.job_title_to_description[job_title]
+
+    else:
+        job_description = extract_job_description(job_description_link)
+
+    job = Job(job_title, country, city, job_description_link, job_description)
 
     return job
 
@@ -78,6 +115,7 @@ def jsons_to_values(dir_path):
     for json_file_path in all_json_files:
         with open(json_file_path) as input_file:
             json_array = json.load(input_file)
+            del json_array['job_description_link']
             values.append(list(json_array.values()))
 
     return values
@@ -110,8 +148,8 @@ if __name__ == '__main__':
         jobs.append(temp_job)
         covert_job_to_json(temp_job, ind)
 
-    # for j in jobs:
-    #     print(j)
+    for j in jobs:
+        print(j)
 
     # login to sql db
     db = SqlDB()
